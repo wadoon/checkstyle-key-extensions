@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm") version "2.1.21"
+    `maven-publish`
 }
 
 group = "org.key-project.devel"
@@ -10,7 +11,9 @@ repositories {
 }
 
 dependencies {
-    api("com.puppycrawl.tools:checkstyle:10.26.1")
+    compileOnly("com.puppycrawl.tools:checkstyle:10.26.1")
+
+    testImplementation("com.puppycrawl.tools:checkstyle:10.26.1")
     testImplementation(kotlin("test"))
 }
 

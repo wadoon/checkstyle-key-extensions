@@ -1,4 +1,4 @@
-package org.key_project.checkstyle.org.key_project.checkstyle
+package org.key_project.checkstyle
 
 import com.google.common.collect.Range
 import com.google.common.collect.RangeSet
@@ -9,7 +9,7 @@ import com.puppycrawl.tools.checkstyle.api.Filter
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.regex.Pattern
-import kotlin.io.path.useLines
+import kotlin.io.path.readText
 
 /**
  * This class implements a checkstyle filter which filters all messages
@@ -48,7 +48,6 @@ class GitDiffFilter : Filter, BeforeExecutionFileFilter {
         private val EMPTY_SET: RangeSet<Int> = TreeRangeSet.create()
     }
 
-
     private var diffFilename: Path? = null
         set(value) {
             field = value
@@ -61,9 +60,33 @@ class GitDiffFilter : Filter, BeforeExecutionFileFilter {
             computeChangedLines()
         }
 
+    private val mergeBase by lazy {
+        val pb = ProcessBuilder("git", "merge-base", "HEAD", "origin/main")
+        pb.redirectOutput()
+        val process = pb.start()
+        process.waitFor()
+        process.inputReader().use {
+            it.readText()
+        }
+    }
+
+    private val diffContent by lazy {
+        if (diffFilename != null) {
+            diffFilename!!.readText()
+        } else {
+            val pb = ProcessBuilder("git", "diff", "-U0", mergeBase)
+            pb.redirectOutput()
+            val process = pb.start()
+            process.waitFor()
+            process.inputReader().use {
+                it.readText()
+            }
+        }
+    }
+
     private var changedLines: MutableMap<String, RangeSet<Int>> = HashMap()
 
-    override fun accept(uri: String?): Boolean {
+    override fun accept(uri: String): Boolean {
         return uri in changedLines
     }
 
@@ -82,29 +105,27 @@ class GitDiffFilter : Filter, BeforeExecutionFileFilter {
 
     private fun computeChangedLines() {
         changedLines.clear()
-        diffFilename?.useLines { lines ->
-            var lastRange: RangeSet<Int>? = null
+        var lastRange: RangeSet<Int>? = null
 
-            for (line in lines) {
-                val fileMatch = FILENAME_PATTERN.matcher(line)
-                if (fileMatch.matches()) {
-                    val filename = fileMatch.group(1)
-                    val path = filenamePrefix?.resolve(filename) ?: Paths.get(filename)
-                    val uri = path.toUri().toString()
-                    lastRange = changedLines.put(uri, TreeRangeSet.create())
-                    continue
-                }
+        for (line in diffContent.lineSequence()) {
+            val fileMatch = FILENAME_PATTERN.matcher(line)
+            if (fileMatch.matches()) {
+                val filename = fileMatch.group(1)
+                val path = filenamePrefix?.resolve(filename) ?: Paths.get(filename)
+                val uri = path.toUri().toString()
+                lastRange = changedLines.put(uri, TreeRangeSet.create())
+                continue
+            }
 
-                val change = CHANGE_PATTERN.matcher(line)
-                if (change.matches()) {
-                    val from = change.group(1).toInt()
-                    val toString = change.group(2)
-                    val len = toString?.toInt() ?: 1
+            val change = CHANGE_PATTERN.matcher(line)
+            if (change.matches()) {
+                val from = change.group(1).toInt()
+                val toString = change.group(2)
+                val len = toString?.toInt() ?: 1
 
-                    // store this interval only if it is not a deletion.
-                    if (len > 0) {
-                        lastRange?.add(Range.closed(from, from + len - 1))
-                    }
+                // store this interval only if it is not a deletion.
+                if (len > 0) {
+                    lastRange?.add(Range.closed(from, from + len - 1))
                 }
             }
         }
