@@ -4,7 +4,8 @@ import java.io.ByteArrayOutputStream
 import java.nio.file.Paths
 import kotlin.io.path.absolute
 import kotlin.io.path.walk
-import kotlin.test.DefaultAsserter.assertTrue
+import kotlin.io.path.writeText
+import kotlin.test.assertEquals
 
 /**
  *
@@ -17,6 +18,16 @@ class Test {
         System.setProperty("home.dir", Paths.get(".").absolute().toString())
 
         val root = Paths.get("share")
+
+        root.resolve("Test.java").writeText(
+            """
+            public class Test {
+                // A tooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo long line, that should be forbidden, but previously exists.
+                // This line is also so long......................................................., but fresh. Hence, it appears in git diff. 
+            }
+        """.trimIndent()
+        )
+
         val files = root.walk().map { it.toFile() }.toList()
 
         val sos = ByteArrayOutputStream()
@@ -36,8 +47,12 @@ class Test {
 
         val errors = checker.process(files)
         println("""Found $errors check style errors.""")
-        println(sos.toString())
-        assertTrue("$errors check style errors found. $sos", errors == 0)
+        println(sos)
+        assertEquals(
+            1, errors,
+            "There should be exactly one checkstyle error!"
+        )
+
         checker.destroy()
     }
 }
