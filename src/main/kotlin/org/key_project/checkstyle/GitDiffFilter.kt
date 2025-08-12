@@ -11,6 +11,28 @@ import java.nio.file.Paths
 import java.util.regex.Pattern
 import kotlin.io.path.readText
 
+@Suppress("unused")
+class GitDiffFileFilter : BeforeExecutionFileFilter {
+    override fun accept(uri: String): Boolean {
+        GitDiffFilterData.init()
+        val path = GitDiffFilterData.filenamePrefix?.resolve(uri) ?: Paths.get(uri)
+        return path in GitDiffFilterData.changedLines
+    }
+}
+
+@Suppress("unused")
+class GitDiffLineFilter : Filter {
+    override fun accept(event: AuditEvent): Boolean {
+        GitDiffFilterData.init()
+        val filename: String = event.fileName ?: return false
+        return GitDiffFilterData.hasLineChanged(filename, event.line)
+    }
+}
+
+class Data {
+
+}
+
 /**
  * This class implements a checkstyle filter which filters all messages
  * which correspond to lines which have been recently changed according
@@ -40,33 +62,34 @@ import kotlin.io.path.readText
  * @version 1
  * @since Mar 2017
  */
-@Suppress("unused")
-class GitDiffFilter : Filter, BeforeExecutionFileFilter {
-    companion object {
-        private val FILENAME_PATTERN: Pattern = Pattern.compile("\\+\\+\\+ b/(.*)")
-        private val CHANGE_PATTERN: Pattern = Pattern.compile("@@ -[^ ]+ \\+(\\d+)(?:,(\\d+))? @@.*")
-        private val EMPTY_SET: RangeSet<Int> = TreeRangeSet.create()
+object GitDiffFilterData {
+    private val FILENAME_PATTERN: Pattern = Pattern.compile("\\+\\+\\+ b/(.*)")
+    private val CHANGE_PATTERN: Pattern = Pattern.compile("@@ -[^ ]+ \\+(\\d+)(?:,(\\d+))? @@.*")
+    private val EMPTY_SET: RangeSet<Int> = TreeRangeSet.create()
+
+    internal var diffFilename: Path? = null
+        set(value) {
+            field = value
+            computeChangedLines()
+        }
+
+    internal var filenamePrefix: Path? = null
+        set(value) {
+            field = value
+            computeChangedLines()
+        }
+
+    internal val mergeBase by lazy {
+        executeCommandReturnOutput("git", "merge-base", "HEAD", "origin/main")
     }
 
-    private var diffFilename: Path? = null
-        set(value) {
-            field = value
-            computeChangedLines()
-        }
-
-    private var filenamePrefix: Path? = null
-        set(value) {
-            field = value
-            computeChangedLines()
-        }
-
-    private val mergeBase by lazy {
-        val pb = ProcessBuilder("git", "merge-base", "HEAD", "origin/main")
+    private fun executeCommandReturnOutput(vararg command: String): String {
+        val pb = ProcessBuilder(*command)
         pb.redirectOutput()
         val process = pb.start()
         process.waitFor()
-        process.inputReader().use {
-            it.readText()
+        return process.inputReader().use {
+            it.readText().trim()
         }
     }
 
@@ -74,34 +97,12 @@ class GitDiffFilter : Filter, BeforeExecutionFileFilter {
         if (diffFilename != null) {
             diffFilename!!.readText()
         } else {
-            val pb = ProcessBuilder("git", "diff", "-U0", mergeBase)
-            pb.redirectOutput()
-            val process = pb.start()
-            process.waitFor()
-            process.inputReader().use {
-                it.readText()
-            }
+            executeCommandReturnOutput("git", "diff", "-U0", mergeBase)
         }
     }
 
-    private var changedLines: MutableMap<String, RangeSet<Int>> = HashMap()
-
-    override fun accept(uri: String): Boolean {
-        return uri in changedLines
-    }
-
-    override fun accept(event: AuditEvent): Boolean {
-        val filename = event.fileName
-        if (filename == null) {
-            return false
-        }
-
-        val intervals = changedLines.getOrDefault(filename, EMPTY_SET)
-
-        //require(find(intervals, event.line) == findSimple(intervals, event.line))
-
-        return intervals.contains(event.line)
-    }
+    internal val changedLines: MutableMap<Path, RangeSet<Int>> = HashMap()
+    internal var initialized = false
 
     private fun computeChangedLines() {
         changedLines.clear()
@@ -112,8 +113,8 @@ class GitDiffFilter : Filter, BeforeExecutionFileFilter {
             if (fileMatch.matches()) {
                 val filename = fileMatch.group(1)
                 val path = filenamePrefix?.resolve(filename) ?: Paths.get(filename)
-                val uri = path.toUri().toString()
-                lastRange = changedLines.put(uri, TreeRangeSet.create())
+                //val uri = path.toUri().toString()
+                lastRange = changedLines.computeIfAbsent(path) { TreeRangeSet.create() }
                 continue
             }
 
@@ -129,5 +130,21 @@ class GitDiffFilter : Filter, BeforeExecutionFileFilter {
                 }
             }
         }
+        initialized = true
     }
+
+    fun init() {
+        if (!initialized) computeChangedLines()
+    }
+
+    fun resolve(filename: String): Path =
+        filenamePrefix?.resolve(filename) ?: Paths.get(filename)
+
+    fun hasLineChanged(path: Path, line: Int): Boolean {
+        val intervals = changedLines.getOrDefault(path, EMPTY_SET)
+        return intervals.contains(line)
+    }
+
+    fun hasLineChanged(path: String, line: Int): Boolean = hasLineChanged(resolve(path), line)
+
 }
