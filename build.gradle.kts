@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "2.1.21"
+    kotlin("jvm") version "2.2.0"
     `maven-publish`
 }
 
@@ -12,10 +12,10 @@ repositories {
 
 dependencies {
     // Do not deliver checkstyle as a dependency
-    compileOnly("com.puppycrawl.tools:checkstyle:10.26.1")
+    compileOnly("com.puppycrawl.tools:checkstyle:11.0.0")
 
     // but checkstyle is required for testing.
-    testImplementation("com.puppycrawl.tools:checkstyle:10.26.1")
+    testImplementation("com.puppycrawl.tools:checkstyle:11.0.0")
 
     testImplementation(kotlin("test"))
 }
