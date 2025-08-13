@@ -7,7 +7,10 @@
 	<property name="fileExtensions" value="java"/>
 	<property name="basedir" value="${home.dir}"/>
 
-	<module name="org.key_project.checkstyle.GitDiffFileFilter"/>
+	<module name="org.key_project.checkstyle.GitDiffFileFilter">
+		<property name="debug" value="true"/>
+	</module>
+
 	<module name="org.key_project.checkstyle.GitDiffLineFilter"/>
 
 	<module name="LineLength">
