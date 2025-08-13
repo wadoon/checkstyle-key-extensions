@@ -9,6 +9,7 @@
 
 	<module name="org.key_project.checkstyle.GitDiffFileFilter">
 		<property name="debug" value="true"/>
+		<property name="basedir" value="${home.dir}"/>
 	</module>
 
 	<module name="org.key_project.checkstyle.GitDiffLineFilter"/>

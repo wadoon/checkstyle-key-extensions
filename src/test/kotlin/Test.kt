@@ -1,5 +1,6 @@
 import com.puppycrawl.tools.checkstyle.*
 import org.junit.jupiter.api.Test
+import org.key_project.checkstyle.Helper
 import java.io.ByteArrayOutputStream
 import java.nio.file.Paths
 import kotlin.io.path.absolute

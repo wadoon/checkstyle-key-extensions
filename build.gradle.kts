@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "org.key-project.devel"
-version = "1.10-SNAPSHOT"
+version = "1.17-SNAPSHOT"
 description = "A concise description of my library"
 
 
